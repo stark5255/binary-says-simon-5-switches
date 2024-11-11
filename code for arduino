@@ -1,0 +1,196 @@
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+
+
+#define ICON_SIZE 16 // Size of the icons
+
+
+// Define pins for the buttons and LEDs
+const int buttonPins[] = {8, 9, 10, 11}; // Button pins
+const int ledPins[] = {3, 4, 5, 6}; // LED pins
+const int buzzerPin = 13; // Buzzer pin
+
+
+int sequence[16]; // Array to store the generated sequence
+int playerSequence[16]; // Array to store the player's sequence
+
+
+int level = 1; // Current level
+int sequenceLength = 1; // Length of the sequence to be shown
+
+
+bool gameOver = false; // Flag to indicate if the game is over
+bool buttonPressed = false; // Flag to indicate if a button has been pressed after game over
+
+
+// Initialize the LCD with I2C address 0x27, 16 columns, and 2 rows
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+
+
+void setup() {
+    // Initialize the LCD
+    lcd.init();
+    lcd.backlight(); // Turn on the LCD backlight
+
+
+    // Set button pins to input mode with pull-up resistors
+    for (int i = 0; i < 4; i++) {
+        pinMode(buttonPins[i], INPUT_PULLUP);
+    }
+
+
+    // Set LED pins to output mode
+    for (int i = 0; i < 4; i++) {
+        pinMode(ledPins[i], OUTPUT);
+    }
+
+
+    // Set the buzzer pin to output mode
+    pinMode(buzzerPin, OUTPUT);
+
+
+    // Seed the random number generator
+    randomSeed(analogRead(0));
+
+
+    // Initialize the game by restarting it
+    restartGame();
+}
+
+
+
+
+void loop() {
+    if (!gameOver) {
+        lcd.clear(); // Clear the LCD display
+        displayLevel(); // Display the current level
+        delay(1000); // Wait for 1 second
+        displaySequence(); // Display the sequence
+        delay(1000); // Wait for 1 second
+        displayRepeatSequence(); // Display instruction to repeat the sequence
+        delay(500); // Wait for 0.5 seconds
+        getPlayerSequence(); // Get the player's sequence
+        checkSequence(); // Check if the player's sequence matches the generated sequence
+    } else {
+        lcd.clear(); // Clear the LCD display
+        displayGameOver(); // Display the game over message
+        buzzerGameOver(); // Play the game over sound
+        waitForButton(); // Wait for a button press to restart the game
+        if (buttonPressed) {
+            restartGame(); // Restart the game if a button is pressed
+        }
+    }
+}
+
+
+void displayLevel() {
+    // Display the level on the LCD screen
+    lcd.setCursor(0, 0);
+    lcd.print("Level: ");
+    lcd.print(level);
+}
+
+
+void displaySequence() {
+    for (int i = 0; i < sequenceLength; i++) {
+        int btn = sequence[i];
+        digitalWrite(ledPins[btn], HIGH); // Turn on the LED
+        tone(buzzerPin, 1000); // Play a tone
+        delay(500); // Wait for 0.5 seconds
+        digitalWrite(ledPins[btn], LOW); // Turn off the LED
+        noTone(buzzerPin); // Stop the tone
+        delay(250); // Wait for 0.25 seconds
+    }
+}
+
+
+void displayRepeatSequence() {
+    // Display instruction to repeat the sequence on the LCD screen
+    lcd.setCursor(0, 1);
+    lcd.print("Repeat sequence");
+}
+
+
+void getPlayerSequence() {
+    for (int i = 0; i < sequenceLength; i++) {
+        int btn = waitForButton(); // Wait for the player to press a button
+        playerSequence[i] = btn; // Store the pressed button in the player's sequence array
+        digitalWrite(ledPins[btn], HIGH); // Turn on the corresponding LED
+        tone(buzzerPin, 1000); // Play a tone
+        delay(500); // Wait for 0.5 seconds
+        digitalWrite(ledPins[btn], LOW); // Turn off the LED
+        noTone(buzzerPin); // Stop the tone
+        delay(250); // Wait for 0.25 seconds
+        
+        // Check if the button pressed by the player matches the corresponding button in the sequence
+        if (playerSequence[i] != sequence[i]) {
+            gameOver = true; // Set game over flag to true
+            return; // Exit the function
+        }
+    }
+}
+
+
+int waitForButton() {
+    int btn;
+    while (true) {
+        for (int i = 0; i < 4; i++) {
+            if (digitalRead(buttonPins[i]) == LOW) {
+                tone(buzzerPin, 1000); // Play a tone
+                delay(100); // Wait for 0.1 second
+                noTone(buzzerPin); // Stop the tone
+                buttonPressed = true; // Set button pressed flag to true
+                return i; // Return the index of the pressed button
+            }
+        }
+    }
+}
+
+
+void checkSequence() {
+    for (int i = 0; i < sequenceLength; i++) {
+        if (playerSequence[i] != sequence[i]) { // If the player's sequence doesn't match the generated sequence
+            gameOver = true; // Set game over flag to true
+            return;
+        }
+    }
+    level++; // Increment the level
+    sequenceLength++; // Increase the length of the sequence
+    generateSequence(); // Generate a new sequence
+}
+
+
+void generateSequence() {
+    for (int i = 0; i < sequenceLength; i++) {
+        sequence[i] = random(4); // Generate a random number between 0 and 3
+    }
+}
+
+
+void displayGameOver() {
+    // Display game over message on the LCD screen
+    lcd.setCursor(0, 0);
+    lcd.print("    Game Over");
+    lcd.setCursor(0, 1);
+    lcd.print("       bye");
+}
+
+
+void buzzerGameOver() {
+    for (int i = 0; i < 3; i++) {
+        tone(buzzerPin, 1500); // Play a tone
+        delay(500); // Wait for 0.5 seconds
+        noTone(buzzerPin); // Stop the tone
+        delay(500); // Wait for 0.5 seconds
+    }
+}
+
+
+void restartGame() {
+    level = 1; // Reset the level to 1
+    sequenceLength = 1; // Reset the sequence length
+    gameOver = false; // Reset the game over flag
+    buttonPressed = false; // Reset the button pressed flag
+    generateSequence(); // Generate a new sequence
+}
+
